@@ -14,18 +14,51 @@ sorpresas y deja el control del secreto en tus manos.
 """
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
 # Permite ejecutar el script directo (agrega la raíz del proyecto al path).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import enable_utf8_console, settings  # noqa: E402
+from config import ROOT, enable_utf8_console, settings  # noqa: E402
 from src.ig_client import InstagramAPIError, InstagramClient  # noqa: E402
+
+
+def _update_env(token: str, user_id: str | None) -> None:
+    """Reescribe IG_ACCESS_TOKEN (e IG_USER_ID) en el .env, preservando el resto.
+
+    Se usa con --write para que el cron mensual renueve el token sin intervención.
+    """
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        print(f"[token] No existe {env_path}; no se puede escribir.", file=sys.stderr)
+        return
+    lineas = env_path.read_text(encoding="utf-8").splitlines()
+    nuevas: list[str] = []
+    visto_token = visto_user = False
+    for ln in lineas:
+        if ln.startswith("IG_ACCESS_TOKEN="):
+            nuevas.append(f"IG_ACCESS_TOKEN={token}"); visto_token = True
+        elif ln.startswith("IG_USER_ID=") and user_id:
+            nuevas.append(f"IG_USER_ID={user_id}"); visto_user = True
+        else:
+            nuevas.append(ln)
+    if not visto_token:
+        nuevas.append(f"IG_ACCESS_TOKEN={token}")
+    if user_id and not visto_user:
+        nuevas.append(f"IG_USER_ID={user_id}")
+    env_path.write_text("\n".join(nuevas) + "\n", encoding="utf-8")
+    print(f"[token] .env actualizado ({env_path}).")
 
 
 def main() -> None:
     enable_utf8_console()
+    parser = argparse.ArgumentParser(description="Renueva el token de larga duración.")
+    parser.add_argument("--write", action="store_true",
+                        help="Reescribe el .env automáticamente (para el cron).")
+    args = parser.parse_args()
+
     settings.require("app_secret", "access_token")
     client = InstagramClient()
 
@@ -62,15 +95,21 @@ def main() -> None:
     except InstagramAPIError as exc:
         print(f"[token] (aviso) no se pudo leer el user_id automáticamente: {exc}")
 
-    # 3) Mostrar qué pegar en .env.
     dias = f"{int(expira) // 86400} días" if expira else "~60 días"
-    print("\n" + "=" * 64)
-    print("Pegá estos valores en tu archivo .env:\n")
-    print(f"IG_ACCESS_TOKEN={nuevo_token}")
-    if user_id:
-        print(f"IG_USER_ID={user_id}")
-    print(f"\n(Token válido ~{dias}. Volvé a correr este script antes de que expire.)")
-    print("=" * 64)
+
+    # 3) Escribir el .env (modo automático) o mostrar qué pegar (modo manual).
+    if args.write:
+        _update_env(nuevo_token, user_id or None)
+        print(f"[token] Renovado OK. Válido ~{dias}.")
+    else:
+        print("\n" + "=" * 64)
+        print("Pegá estos valores en tu archivo .env:\n")
+        print(f"IG_ACCESS_TOKEN={nuevo_token}")
+        if user_id:
+            print(f"IG_USER_ID={user_id}")
+        print(f"\n(Token válido ~{dias}. Volvé a correr esto antes de que expire, "
+              "o usá --write para que actualice el .env solo.)")
+        print("=" * 64)
 
 
 if __name__ == "__main__":
