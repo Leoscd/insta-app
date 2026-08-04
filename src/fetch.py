@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
+
+import requests
 
 from config import enable_utf8_console, settings
 from src.db import (
@@ -25,6 +28,28 @@ from src.db import (
     upsert_media,
 )
 from src.ig_client import InstagramAPIError, InstagramClient
+
+
+def _cache_thumb(media_id: str, item: dict, thumbs_dir: Path) -> None:
+    """Descarga la MINIATURA del post a data/thumbs/{id}.jpg (una sola vez).
+
+    Nunca descarga el video: usa thumbnail_url (reels/video) o media_url solo si
+    es IMAGE. Las URLs de la API expiran, por eso las guardamos localmente.
+    """
+    dest = thumbs_dir / f"{media_id}.jpg"
+    if dest.exists():
+        return
+    url = item.get("thumbnail_url")
+    if not url and (item.get("media_type") or "").upper() == "IMAGE":
+        url = item.get("media_url")
+    if not url:
+        return
+    try:
+        r = requests.get(url, timeout=20)
+        if r.status_code == 200 and r.content:
+            dest.write_bytes(r.content)
+    except requests.RequestException:
+        pass
 
 
 def run(limit: int | None = None, include_stories: bool = True) -> None:
@@ -64,6 +89,8 @@ def run(limit: int | None = None, include_stories: bool = True) -> None:
     n_media = 0
     n_metrics = 0
     con_error: list[str] = []
+    thumbs_dir = settings.db_path.parent / "thumbs"
+    thumbs_dir.mkdir(parents=True, exist_ok=True)
 
     with get_connection() as conn:
         insert_account_snapshot(conn, account, captured_at)
@@ -72,6 +99,7 @@ def run(limit: int | None = None, include_stories: bool = True) -> None:
             media_id = item.get("id")
             product = (item.get("media_product_type") or "FEED").upper()
             upsert_media(conn, item, captured_at)
+            _cache_thumb(media_id, item, thumbs_dir)
             n_media += 1
 
             try:
@@ -89,6 +117,19 @@ def run(limit: int | None = None, include_stories: bool = True) -> None:
               f"(normal en fotos viejas o contenido sin permiso de insights):")
         for e in con_error[:5]:
             print(f"          - {e}")
+
+    # Auto-etiquetar lo nuevo. Usa el LLM si hay API key (más preciso), y si no
+    # cae al clasificador NLP local. No rompe el fetch si algo falla.
+    try:
+        if settings.anthropic_api_key:
+            from src import tagging
+            tagging.tag_pending()
+        else:
+            from src import autotag
+            autotag.train_and_tag()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[fetch] (aviso) auto-etiquetado omitido: {exc}")
+
     print(f"[fetch] Base: {settings.db_path}")
 
 

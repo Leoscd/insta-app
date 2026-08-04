@@ -5,6 +5,9 @@ python-dotenv>=1.0,<2
 # Análisis
 pandas>=2.2,<3
 
+# NLP local para auto-etiquetado de temas (sin API)
+scikit-learn>=1.4,<2
+
 # Dashboard
 streamlit>=1.40,<2
 altair>=5.4,<6
