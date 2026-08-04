@@ -1,0 +1,13 @@
+# Núcleo
+requests>=2.32,<3
+python-dotenv>=1.0,<2
+
+# Análisis
+pandas>=2.2,<3
+
+# Dashboard
+streamlit>=1.40,<2
+altair>=5.4,<6
+
+# Etiquetado por IA (opcional — solo se usa si hay ANTHROPIC_API_KEY)
+anthropic>=0.40,<1
