@@ -19,17 +19,18 @@ import json
 from config import enable_utf8_console, settings
 from src.db import get_connection, set_topic
 
-# Taxonomía inicial pensada para el nicho de Leo (IA aplicada a arquitectura).
-# Editable: agregá/sacá temas según evolucione el contenido.
+# Taxonomía basada en el contenido REAL de @soy.leo_ai (derivada de leer sus 154
+# publicaciones). Editable: agregá/sacá temas según evolucione el contenido.
 TAXONOMY = [
-    "caso_de_exito",       # resultados/proyectos concretos, antes-después
-    "tip_tecnico",         # cómo hacer algo, tutorial breve, herramienta
-    "mito_de_ia",          # desmentir creencias sobre IA
-    "detras_de_escena",    # proceso, día a día, personal
-    "testimonio",          # voz de un cliente/alumno
-    "tutorial_herramienta",# demo de una herramienta/software puntual
-    "motivacional",        # mindset, inspiración, llamado a la acción
-    "otro",                # no encaja en las anteriores
+    "dolor_tiempo",     # dolor de tareas manuales/horas perdidas -> IA libera tiempo
+    "mito_ia",          # reencuadres/desmitificar ("no te reemplaza", "no es solo renders")
+    "herramienta_demo", # demo de herramienta/sistema/cómo hacer (MCP, Skills, calculadoras, apps)
+    "posicionamiento",  # negocio/precios/valor/diferenciación (cobrar por valor, vender proceso)
+    "motivacional",     # mindset/identidad/adaptarse/disciplina
+    "caso_exito",       # resultados de alumnos/comunidad, testimonios
+    "evento",           # charlas/eventos/hitos/agradecimientos (EXPOCON, Fórum)
+    "dato_estadistica", # posts que arrancan con una estadística (91%, 73%, 70%)
+    "otro",             # no encaja / caption vacío
 ]
 
 _PROMPT = """Sos un clasificador de contenido de Instagram para un consultor de IA aplicada a arquitectura.
