@@ -8,6 +8,7 @@ data/*.db
 data/*.sqlite
 data/*.sqlite3
 data/exports/
+data/thumbs/
 
 # Python
 __pycache__/

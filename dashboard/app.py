@@ -94,7 +94,7 @@ if df.empty:
 # Navegación con st.radio (no st.tabs): st.tabs NO recuerda la pestaña activa
 # tras un rerun, así que al usar un filtro te devolvía a "Resumen". El radio
 # persiste su valor vía `key`, y solo se renderiza la vista seleccionada.
-VISTAS = ["Resumen", "Por formato", "Por tema", "Planificador", "Drivers",
+VISTAS = ["Resumen", "Galería", "Por formato", "Por tema", "Planificador", "Drivers",
           "Velocidad", "Ranking", "Horarios", "Hooks & contenido"]
 vista = st.radio("Vista", VISTAS, horizontal=True, label_visibility="collapsed",
                  key="vista_activa")
@@ -143,7 +143,44 @@ if vista == "Resumen":
         por_mes = publicados.groupby(publicados["publicado"].dt.strftime("%Y-%m")).size()
         st.bar_chart(por_mes)
 
-# ── 2. Por formato ────────────────────────────────────────────────────────────
+# ── 2. Galería ────────────────────────────────────────────────────────────────
+elif vista == "Galería":
+    st.subheader("Galería de publicaciones")
+    st.caption("Miniatura + métricas de cada post, ordenados por rendimiento. "
+               "Tocá el link para abrirlo en Instagram.")
+    tiene_thumbs = "thumb_local" in df.columns and df["thumb_local"].notna().any()
+    if not tiene_thumbs:
+        st.info("Las miniaturas se cachean en la próxima corrida de `fetch`. "
+                "Volvé a entrar después de la siguiente captura.")
+
+    colf, colm = st.columns([1, 1])
+    formatos = ["Todos"] + sorted(df["formato"].dropna().unique().tolist())
+    fsel = colf.selectbox("Formato", formatos, key="gal_fmt")
+    with colm:
+        met = metrica_selector(df, key="gal_metric", default="reach")
+
+    vis = df if fsel == "Todos" else df[df["formato"] == fsel]
+    if met in vis.columns:
+        vis = vis.dropna(subset=[met]).sort_values(met, ascending=False)
+    vis = vis.head(30)
+
+    n_cols = 3
+    cols = st.columns(n_cols)
+    for i, (_, r) in enumerate(vis.iterrows()):
+        with cols[i % n_cols]:
+            if r.get("thumb_local"):
+                st.image(r["thumb_local"], use_container_width=True)
+            valor = r.get(met)
+            titulo = f"**{r['formato']}** · {r.get('tema', '')}"
+            st.markdown(titulo)
+            if pd.notna(valor):
+                st.markdown(f"{METRICAS_LEGIBLES.get(met, met)}: **{valor:,.0f}**")
+            st.caption((r.get("hook") or "")[:70])
+            if r.get("permalink"):
+                st.markdown(f"[Ver en Instagram ↗]({r['permalink']})")
+            st.divider()
+
+# ── 3. Por formato ────────────────────────────────────────────────────────────
 elif vista == "Por formato":
     st.subheader("¿Qué formato rinde mejor?")
     tabla = analysis.by_format(df)
@@ -241,12 +278,13 @@ elif vista == "Planificador":
                                  title=METRICAS_LEGIBLES.get(met, met)),
                      alt.Tooltip("n:Q", title="nº posts")],
         )
-        texto = base.mark_text(baseline="middle", fontSize=10).encode(
-            text=alt.Text("n:Q", format="d"), color=alt.value("#555"),
+        texto = base.mark_text(baseline="middle", fontSize=11).encode(
+            text=alt.Text("n:Q", format="d"), color=alt.value("#333"),
         )
         st.markdown(f"**{titulo}** (color = {METRICAS_LEGIBLES.get(met, met)}, "
                     "número = nº de posts)")
-        st.altair_chart((heat + texto).properties(height=200), use_container_width=True)
+        st.altair_chart((heat + texto).properties(height=alt.Step(40)),
+                        use_container_width=True)
 
     _heat("formato", "Formato × Día")
     _heat("tema", "Tema × Día")
@@ -268,24 +306,30 @@ elif vista == "Drivers":
             "has_number": "tiene número", "n_hashtags": "nº hashtags",
             "hook_len": "largo hook", "hora": "hora del día",
         }, columns=RATIOS_LEGIBLES)
-        # Heatmap de correlaciones (verde = +, rojo = −).
+        orden_feat = ["largo caption", "nº palabras", "largo hook", "nº emojis",
+                      "nº hashtags", "tiene número", "tiene pregunta", "hora del día"]
+        # Heatmap de correlaciones (verde = +, rojo = −). Altura por fila fija
+        # (alt.Step) para que se vean TODAS las etiquetas, no una de cada dos.
         largo = cor_legible.reset_index(names="feature").melt(
             id_vars="feature", var_name="ratio", value_name="corr")
-        heat = (
-            alt.Chart(largo).mark_rect().encode(
-                x=alt.X("ratio:N", title=None),
-                y=alt.Y("feature:N", title=None),
-                color=alt.Color("corr:Q", scale=alt.Scale(scheme="redyellowgreen", domain=[-0.3, 0.3]),
-                                title="correlación"),
-                tooltip=[alt.Tooltip("feature:N"), alt.Tooltip("ratio:N"),
-                         alt.Tooltip("corr:Q", format="+.2f")],
-            ).properties(height=280)
+        base = alt.Chart(largo).encode(
+            x=alt.X("ratio:N", title=None, axis=alt.Axis(labelLimit=220)),
+            y=alt.Y("feature:N", title=None, sort=orden_feat,
+                    axis=alt.Axis(labelLimit=220)),
         )
-        texto = heat.mark_text(baseline="middle").encode(
-            text=alt.Text("corr:Q", format="+.2f"),
-            color=alt.value("black"),
+        heat = base.mark_rect().encode(
+            color=alt.Color("corr:Q",
+                            scale=alt.Scale(scheme="redyellowgreen", domain=[-0.3, 0.3]),
+                            title="correlación"),
+            tooltip=[alt.Tooltip("feature:N", title="atributo"),
+                     alt.Tooltip("ratio:N", title="ratio"),
+                     alt.Tooltip("corr:Q", format="+.2f", title="correlación")],
         )
-        st.altair_chart(heat + texto, use_container_width=True)
+        texto = base.mark_text(baseline="middle", fontSize=12).encode(
+            text=alt.Text("corr:Q", format="+.2f"), color=alt.value("black"),
+        )
+        st.altair_chart((heat + texto).properties(height=alt.Step(38)),
+                        use_container_width=True)
 
         st.markdown("**Tus mejores vs peores creativos** (cuartil sup. vs inf. por reach rate)")
         qc = drivers.quartile_compare(df, "reach_rate")

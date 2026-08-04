@@ -16,6 +16,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from config import settings
 from src.db import get_connection, init_db
 
 # Métricas que nos interesan para el análisis (las que existan aparecen).
@@ -94,8 +95,7 @@ def build_dataset(db_path: Path | None = None) -> pd.DataFrame:
     # Fecha de publicación y derivados temporales EN HORA LOCAL.
     # La API entrega UTC; convertimos para que día/hora sean accionables.
     df["publicado"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-    from config import settings as _cfg
-    local = df["publicado"].dt.tz_convert(_cfg.local_tz)
+    local = df["publicado"].dt.tz_convert(settings.local_tz)
     df["publicado_local"] = local
     dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     df["dia_semana"] = local.dt.dayofweek.map(lambda i: dias[i] if pd.notna(i) else None)
@@ -104,6 +104,13 @@ def build_dataset(db_path: Path | None = None) -> pd.DataFrame:
 
     # Hook = primera línea no vacía del caption.
     df["hook"] = df["caption"].apply(_primera_linea)
+
+    # Ruta local de la miniatura cacheada (si existe), para la galería.
+    thumbs_dir = settings.db_path.parent / "thumbs"
+    df["thumb_local"] = df["media_id"].apply(
+        lambda mid: str(thumbs_dir / f"{mid}.jpg")
+        if (thumbs_dir / f"{mid}.jpg").exists() else None
+    )
 
     # Engagement rate = interacciones / alcance (cuando hay alcance).
     interacciones = df["total_interactions"]
