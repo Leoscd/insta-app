@@ -91,14 +91,16 @@ if df.empty:
     )
     st.stop()
 
-(tab_resumen, tab_formato, tab_tema, tab_drivers, tab_velocidad,
- tab_ranking, tab_horarios, tab_hooks) = st.tabs(
-    ["Resumen", "Por formato", "Por tema", "Drivers", "Velocidad",
-     "Ranking", "Horarios", "Hooks & contenido"]
-)
+# Navegación con st.radio (no st.tabs): st.tabs NO recuerda la pestaña activa
+# tras un rerun, así que al usar un filtro te devolvía a "Resumen". El radio
+# persiste su valor vía `key`, y solo se renderiza la vista seleccionada.
+VISTAS = ["Resumen", "Por formato", "Por tema", "Drivers", "Velocidad",
+          "Ranking", "Horarios", "Hooks & contenido"]
+vista = st.radio("Vista", VISTAS, horizontal=True, label_visibility="collapsed",
+                 key="vista_activa")
 
 # ── 1. Resumen ────────────────────────────────────────────────────────────────
-with tab_resumen:
+if vista == "Resumen":
     st.subheader("Panorama general")
     seg = cargar_seguidores()
     c1, c2, c3, c4 = st.columns(4)
@@ -142,7 +144,7 @@ with tab_resumen:
         st.bar_chart(por_mes)
 
 # ── 2. Por formato ────────────────────────────────────────────────────────────
-with tab_formato:
+elif vista == "Por formato":
     st.subheader("¿Qué formato rinde mejor?")
     tabla = analysis.by_format(df)
     if tabla.empty:
@@ -155,7 +157,7 @@ with tab_formato:
         st.bar_chart(prom)
 
 # ── 3. Por tema ───────────────────────────────────────────────────────────────
-with tab_tema:
+elif vista == "Por tema":
     st.subheader("¿Qué temas traccionan? (foco en guardados y compartidos)")
     tabla = analysis.by_topic(df)
     if tabla.empty:
@@ -197,7 +199,7 @@ with tab_tema:
         st.cache_data.clear()
 
 # ── 4. Drivers ────────────────────────────────────────────────────────────────
-with tab_drivers:
+elif vista == "Drivers":
     st.subheader("¿Qué atributos del creativo mueven el rendimiento?")
     st.caption("Correlación (Spearman) de features del creativo vs los ratios. "
                "⚠️ Señales direccionales: con pocos posts y guardados bajos, son "
@@ -245,7 +247,7 @@ with tab_drivers:
             colt.bar_chart(pd.Series(mix["tema"]))
 
 # ── 5. Velocidad ──────────────────────────────────────────────────────────────
-with tab_velocidad:
+elif vista == "Velocidad":
     st.subheader("Velocidad: cómo acumula cada post en el tiempo")
     n_snap = analysis.snapshot_count()
     st.caption("La velocidad de acumulación en las primeras 24-48 h predice si Meta "
@@ -284,7 +286,7 @@ with tab_velocidad:
                 )
 
 # ── 6. Ranking ────────────────────────────────────────────────────────────────
-with tab_ranking:
+elif vista == "Ranking":
     st.subheader("Mejores y peores publicaciones")
     met = metrica_selector(df, key="rank_metric")
     col1, col2 = st.columns(2)
@@ -298,7 +300,7 @@ with tab_ranking:
                      use_container_width=True, hide_index=True)
 
 # ── 7. Horarios ───────────────────────────────────────────────────────────────
-with tab_horarios:
+elif vista == "Horarios":
     st.subheader("¿Cuándo conviene publicar?")
     met = metrica_selector(df, key="time_metric", default="reach")
     tabla = analysis.timing(df, met)
@@ -331,7 +333,7 @@ with tab_horarios:
         st.altair_chart(heat, use_container_width=True)
 
 # ── 8. Hooks & contenido ──────────────────────────────────────────────────────
-with tab_hooks:
+elif vista == "Hooks & contenido":
     st.subheader("Hooks que funcionaron")
     st.caption("Primeras líneas de tus publicaciones con mejor rendimiento. "
                "Esto alimenta tu prompt de creación de contenido "
