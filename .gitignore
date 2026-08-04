@@ -1,0 +1,35 @@
+# Secretos y credenciales — NUNCA subir al repo
+.env
+*.pem
+*.key
+
+# Base de datos y datos capturados
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+data/exports/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.Python
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude (config local de la maquina, no del proyecto)
+.claude/
