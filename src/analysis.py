@@ -13,6 +13,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from src.db import get_connection, init_db
@@ -28,6 +29,16 @@ FORMAT_LABELS = {
     "REELS": "Reel",
     "STORY": "Historia",
 }
+
+
+def latest_followers(db_path: Path | None = None) -> int | None:
+    """Cantidad de seguidores del snapshot más reciente (base de los ratios)."""
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT followers_count FROM account_snapshots "
+            "WHERE followers_count IS NOT NULL ORDER BY captured_at DESC LIMIT 1"
+        ).fetchone()
+    return int(row["followers_count"]) if row else None
 
 
 def _latest_metrics_sql() -> str:
@@ -97,6 +108,20 @@ def build_dataset(db_path: Path | None = None) -> pd.DataFrame:
         interacciones = interacciones.fillna(componentes)
     df["interacciones"] = interacciones
     df["engagement_rate"] = (interacciones / df["reach"]).where(df["reach"] > 0)
+
+    # ── Ratios de rendimiento (las señales que mira el algoritmo de Meta) ──────
+    foll = latest_followers(db_path)
+    if foll:
+        df["reach_rate"] = df["reach"] / foll      # % de tu audiencia alcanzada
+        df["view_rate"] = df["views"] / foll        # views por seguidor
+        df["breakout"] = df["reach"] > foll         # ¿salió a no-seguidores?
+    else:
+        df["reach_rate"] = pd.NA
+        df["view_rate"] = pd.NA
+        df["breakout"] = False
+    df["save_rate"] = (df["saved"] / df["reach"]).where(df["reach"] > 0)   # valor
+    df["share_rate"] = (df["shares"] / df["reach"]).where(df["reach"] > 0)  # distribución
+    df["frecuencia"] = (df["views"] / df["reach"]).where(df["reach"] > 0)   # views/reach
 
     return df
 
@@ -190,3 +215,39 @@ def followers_series(db_path: Path | None = None) -> pd.DataFrame:
     if not df.empty:
         df["captured_at"] = pd.to_datetime(df["captured_at"], errors="coerce", utc=True)
     return df
+
+
+def snapshot_count(db_path: Path | None = None) -> int:
+    """Cuántas capturas distintas hay (para saber si hay curva de velocidad)."""
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute("SELECT COUNT(DISTINCT captured_at) AS n FROM metrics").fetchone()
+    return int(row["n"]) if row else 0
+
+
+def metric_history(media_id: str, db_path: Path | None = None) -> pd.DataFrame:
+    """Historial de todas las métricas de un post a través de los snapshots.
+
+    Devuelve columnas: captured_at, metric_name, value, horas_desde_publicado.
+    Es la base del análisis de VELOCIDAD (cuán rápido acumula alcance/saves).
+    Con un solo snapshot devuelve un único punto por métrica.
+    """
+    with get_connection(db_path) as conn:
+        hist = pd.read_sql_query(
+            "SELECT captured_at, metric_name, value FROM metrics "
+            "WHERE media_id = ? ORDER BY captured_at",
+            conn, params=(media_id,),
+        )
+        pub = conn.execute("SELECT timestamp FROM media WHERE media_id = ?",
+                           (media_id,)).fetchone()
+    if hist.empty:
+        return hist
+    hist["captured_at"] = pd.to_datetime(hist["captured_at"], errors="coerce", utc=True)
+    if pub and pub["timestamp"]:
+        publicado = pd.to_datetime(pub["timestamp"], errors="coerce", utc=True)
+        hist["horas_desde_publicado"] = (
+            (hist["captured_at"] - publicado).dt.total_seconds() / 3600
+        ).round(1)
+    else:
+        hist["horas_desde_publicado"] = np.nan
+    return hist
