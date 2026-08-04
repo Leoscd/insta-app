@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd  # noqa: E402
 
 from config import enable_utf8_console, settings  # noqa: E402
-from src import analysis  # noqa: E402
+from src import analysis, planner  # noqa: E402
 
 
 def _linea_formatos(df: pd.DataFrame) -> str:
@@ -72,17 +72,18 @@ def _linea_hooks(df: pd.DataFrame, metric: str) -> str:
     )
 
 
-def _linea_horarios(df: pd.DataFrame) -> str:
-    t = analysis.timing(df, "reach")
-    if t.empty:
-        return "- (sin datos)"
-    # Mejor combinación día×hora por alcance promedio.
-    apilado = t.stack()
-    if apilado.empty:
-        return "- (sin datos)"
-    mejores = apilado.sort_values(ascending=False).head(3)
-    return "\n".join(f"- {dia} a las {int(hora)}:00 hs (alcance ~{val:.0f})"
-                     for (dia, hora), val in mejores.items())
+def _linea_planificacion(df: pd.DataFrame) -> str:
+    """Mejores combos formato · día · franja para alcance y para guardados."""
+    partes = []
+    for met, etiqueta in [("reach", "alcance"), ("saved", "guardados")]:
+        slots = planner.best_slots(df, met, min_n=3, top=3)
+        if slots.empty:
+            continue
+        partes.append(f"Para **{etiqueta}**:")
+        for _, r in slots.iterrows():
+            partes.append(f"- {r['formato']} · {r['dia_semana']} · {r['franja']} "
+                          f"(prom {r['promedio']:.0f}, n={int(r['n'])})")
+    return "\n".join(partes) if partes else "- (aún sin combos con suficientes datos)"
 
 
 def construir_brief(metric: str) -> str:
@@ -107,8 +108,8 @@ _Generado el {date.today().isoformat()} a partir de {len(df)} publicaciones
 Usá estos como base para el EJE 1 (Hooks). Ya conectaron con tu audiencia:
 {_linea_hooks(df, metric)}
 
-### Mejores horarios para publicar
-{_linea_horarios(df)}
+### Mejor momento para publicar (formato · día · franja, hora local)
+{_linea_planificacion(df)}
 
 ### Naming convention sugerido para Ads Manager
 Para poder trackear qué variable gana, nombrá cada ad así:

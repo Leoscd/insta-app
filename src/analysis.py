@@ -91,11 +91,16 @@ def build_dataset(db_path: Path | None = None) -> pd.DataFrame:
     # Formato legible.
     df["formato"] = df.apply(_formato, axis=1)
 
-    # Fecha de publicación y derivados temporales.
+    # Fecha de publicación y derivados temporales EN HORA LOCAL.
+    # La API entrega UTC; convertimos para que día/hora sean accionables.
     df["publicado"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    from config import settings as _cfg
+    local = df["publicado"].dt.tz_convert(_cfg.local_tz)
+    df["publicado_local"] = local
     dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    df["dia_semana"] = df["publicado"].dt.dayofweek.map(lambda i: dias[i] if pd.notna(i) else None)
-    df["hora"] = df["publicado"].dt.hour
+    df["dia_semana"] = local.dt.dayofweek.map(lambda i: dias[i] if pd.notna(i) else None)
+    df["hora"] = local.dt.hour
+    df["franja"] = df["hora"].apply(_franja)
 
     # Hook = primera línea no vacía del caption.
     df["hook"] = df["caption"].apply(_primera_linea)
@@ -147,6 +152,26 @@ def _primera_linea(caption: object) -> str:
         if linea.strip():
             return linea.strip()
     return ""
+
+
+# Franjas horarias (hora local) para agrupar sin fragmentar demasiado los datos.
+FRANJAS = ["Madrugada (0-5)", "Mañana (6-11)", "Mediodía (12-15)",
+           "Tarde (16-19)", "Noche (20-23)"]
+
+
+def _franja(hora: object) -> object:
+    if pd.isna(hora):
+        return None
+    h = int(hora)
+    if h <= 5:
+        return FRANJAS[0]
+    if h <= 11:
+        return FRANJAS[1]
+    if h <= 15:
+        return FRANJAS[2]
+    if h <= 19:
+        return FRANJAS[3]
+    return FRANJAS[4]
 
 
 # ── Agregaciones ─────────────────────────────────────────────────────────────

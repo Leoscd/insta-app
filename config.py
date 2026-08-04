@@ -6,6 +6,7 @@ Importar `settings` desde acá en vez de leer os.environ suelto.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -29,11 +30,19 @@ class Settings:
     anthropic_api_key: str
     anthropic_model: str
     db_path: Path
+    local_utc_offset: int  # p.ej. -3 = Argentina (sin horario de verano)
 
     @property
     def graph_base(self) -> str:
         """URL base de la Graph API con la versión configurada."""
         return f"https://graph.instagram.com/{self.api_version}"
+
+    @property
+    def local_tz(self) -> timezone:
+        """Zona horaria local (offset fijo). La API devuelve todo en UTC; esto
+        convierte a hora local para que día/hora de publicación sean accionables.
+        Argentina no usa horario de verano, por eso un offset fijo alcanza."""
+        return timezone(timedelta(hours=self.local_utc_offset))
 
     def require(self, *names: str) -> None:
         """Falla con un mensaje claro si falta alguna variable obligatoria.
@@ -85,6 +94,7 @@ def load_settings() -> Settings:
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip(),
         db_path=db_path,
+        local_utc_offset=int(os.getenv("LOCAL_UTC_OFFSET", "-3")),
     )
 
 

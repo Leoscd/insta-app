@@ -19,8 +19,9 @@ decisiones de creación con datos en vez de suposiciones.
 - Etiqueta cada publicación por **tema** (asistido por IA, con corrección manual).
 - Calcula los **ratios que mira el algoritmo** (reach/save/share rate, breakout).
 - **Drivers**: analiza qué atributos del creativo (largo, emojis, números, hora…) mueven el rendimiento.
+- **Planificador**: cruza formato · tema · día · franja horaria (hora local) → qué publicar, qué día y a qué hora.
 - **Velocidad**: mide cómo acumula cada post en las primeras 24-48 h (predice si Meta lo empuja).
-- Dashboard con: ratios, rendimiento por formato, por tema, rankings, horarios y minería de hooks.
+- Dashboard con: ratios, por formato, por tema, planificador, drivers, velocidad, rankings, horarios y hooks.
 - Exporta un **brief de contenido** que alimenta tu prompt de creación con evidencia real.
 
 ---
@@ -87,8 +88,9 @@ src/ig_client.py             # cliente de la Graph API (manejo defensivo de mét
 src/db.py                    # SQLite en formato tidy/largo
 src/fetch.py                 # orquesta la captura de un snapshot
 src/tagging.py               # etiquetado de tema (IA + manual)
-src/analysis.py              # agregaciones + ratios + velocidad
+src/analysis.py              # agregaciones + ratios + velocidad (hora local)
 src/drivers.py               # feature engineering + correlaciones de drivers
+src/planner.py               # planificador: formato · tema · día · franja
 dashboard/app.py             # dashboard Streamlit
 scripts/refresh_token.py     # token largo + descubrir user_id
 scripts/export_content_brief.py  # brief que alimenta el prompt de contenido

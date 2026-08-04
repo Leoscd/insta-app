@@ -20,7 +20,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from config import settings  # noqa: E402
-from src import analysis, drivers  # noqa: E402
+from src import analysis, drivers, planner  # noqa: E402
 from src.db import get_connection, set_topic  # noqa: E402
 from src.tagging import TAXONOMY  # noqa: E402
 
@@ -94,8 +94,8 @@ if df.empty:
 # Navegación con st.radio (no st.tabs): st.tabs NO recuerda la pestaña activa
 # tras un rerun, así que al usar un filtro te devolvía a "Resumen". El radio
 # persiste su valor vía `key`, y solo se renderiza la vista seleccionada.
-VISTAS = ["Resumen", "Por formato", "Por tema", "Drivers", "Velocidad",
-          "Ranking", "Horarios", "Hooks & contenido"]
+VISTAS = ["Resumen", "Por formato", "Por tema", "Planificador", "Drivers",
+          "Velocidad", "Ranking", "Horarios", "Hooks & contenido"]
 vista = st.radio("Vista", VISTAS, horizontal=True, label_visibility="collapsed",
                  key="vista_activa")
 
@@ -198,7 +198,60 @@ elif vista == "Por tema":
         st.success(f"{cambios} temas actualizados.")
         st.cache_data.clear()
 
-# ── 4. Drivers ────────────────────────────────────────────────────────────────
+# ── 4. Planificador ───────────────────────────────────────────────────────────
+elif vista == "Planificador":
+    st.subheader("¿Qué publicar, qué día y a qué hora?")
+    st.caption("Cruce de formato · tema · día · franja horaria (hora local, "
+               f"UTC{settings.local_utc_offset:+d}) contra el rendimiento. "
+               "⚠️ Se muestra `n` (nº de posts) en cada combo: cuanto mayor, más "
+               "confiable. Se afina con la medición continua.")
+    met = metrica_selector(df, key="plan_metric", default="reach")
+
+    st.info(planner.recommendation_text(df, met))
+
+    st.markdown("**Mejores combos** (formato · día · franja, mínimo 3 posts)")
+    slots = planner.best_slots(df, met, min_n=3, top=12)
+    if slots.empty:
+        st.caption("Todavía no hay combos con suficientes posts para esta métrica.")
+    else:
+        st.dataframe(
+            slots.rename(columns={"dia_semana": "día",
+                                  "promedio": METRICAS_LEGIBLES.get(met, met)}),
+            use_container_width=True, hide_index=True,
+        )
+
+    def _heat(dim: str, titulo: str):
+        medias, conteos = planner.matrix(df, dim, met)
+        if medias.empty:
+            st.caption(f"Sin datos para {titulo}.")
+            return
+        m_long = medias.reset_index().melt(id_vars=dim, var_name="día", value_name="valor")
+        c_long = conteos.reset_index().melt(id_vars=dim, var_name="día", value_name="n")
+        largo = m_long.merge(c_long, on=[dim, "día"]).dropna(subset=["valor"])
+        orden = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+        base = alt.Chart(largo).encode(
+            x=alt.X("día:O", sort=orden, title=None),
+            y=alt.Y(f"{dim}:O", title=None),
+        )
+        heat = base.mark_rect().encode(
+            color=alt.Color("valor:Q", scale=alt.Scale(scheme="greens"),
+                            title=METRICAS_LEGIBLES.get(met, met)),
+            tooltip=[alt.Tooltip(f"{dim}:O"), alt.Tooltip("día:O"),
+                     alt.Tooltip("valor:Q", format=",.0f",
+                                 title=METRICAS_LEGIBLES.get(met, met)),
+                     alt.Tooltip("n:Q", title="nº posts")],
+        )
+        texto = base.mark_text(baseline="middle", fontSize=10).encode(
+            text=alt.Text("n:Q", format="d"), color=alt.value("#555"),
+        )
+        st.markdown(f"**{titulo}** (color = {METRICAS_LEGIBLES.get(met, met)}, "
+                    "número = nº de posts)")
+        st.altair_chart((heat + texto).properties(height=200), use_container_width=True)
+
+    _heat("formato", "Formato × Día")
+    _heat("tema", "Tema × Día")
+
+# ── 5. Drivers ────────────────────────────────────────────────────────────────
 elif vista == "Drivers":
     st.subheader("¿Qué atributos del creativo mueven el rendimiento?")
     st.caption("Correlación (Spearman) de features del creativo vs los ratios. "
@@ -307,7 +360,7 @@ elif vista == "Horarios":
     if tabla.empty:
         st.info("Sin datos suficientes para el heatmap.")
     else:
-        st.caption("Promedio por día de semana × hora (según la marca temporal de la API).")
+        st.caption(f"Promedio por día × hora **local** (UTC{settings.local_utc_offset:+d}).")
         orden_dias = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
         largo = (
             tabla.reset_index()
