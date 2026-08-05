@@ -39,9 +39,18 @@ def _cache_thumb(media_id: str, item: dict, thumbs_dir: Path) -> None:
     dest = thumbs_dir / f"{media_id}.jpg"
     if dest.exists():
         return
+    mtype = (item.get("media_type") or "").upper()
     url = item.get("thumbnail_url")
-    if not url and (item.get("media_type") or "").upper() == "IMAGE":
+    if not url and mtype == "IMAGE":
         url = item.get("media_url")
+    # Carrusel: usar la miniatura del primer hijo.
+    if not url and mtype == "CAROUSEL_ALBUM":
+        hijos = (item.get("children") or {}).get("data") or []
+        if hijos:
+            h0 = hijos[0]
+            url = h0.get("thumbnail_url")
+            if not url and (h0.get("media_type") or "").upper() == "IMAGE":
+                url = h0.get("media_url")
     if not url:
         return
     try:

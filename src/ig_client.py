@@ -45,10 +45,12 @@ INSIGHT_METRICS: dict[str, list[str]] = {
     ],
 }
 
-# Campos que pedimos de cada publicación.
+# Campos que pedimos de cada publicación. `children` trae los items de un
+# carrusel (para poder cachear la miniatura del primero).
 MEDIA_FIELDS = (
     "id,caption,media_type,media_product_type,timestamp,permalink,"
-    "like_count,comments_count,thumbnail_url,media_url"
+    "like_count,comments_count,thumbnail_url,media_url,"
+    "children{media_type,media_url,thumbnail_url}"
 )
 
 # Campos de la cuenta.
