@@ -153,13 +153,15 @@ elif vista == "Galería":
         st.info("Las miniaturas se cachean en la próxima corrida de `fetch`. "
                 "Volvé a entrar después de la siguiente captura.")
 
+    # La galería no incluye fotos (no aportan; foco en reels/carruseles/historias).
+    gal = df[df["formato"] != "Foto"]
     colf, colm = st.columns([1, 1])
-    formatos = ["Todos"] + sorted(df["formato"].dropna().unique().tolist())
+    formatos = ["Todos"] + sorted(gal["formato"].dropna().unique().tolist())
     fsel = colf.selectbox("Formato", formatos, key="gal_fmt")
     with colm:
         met = metrica_selector(df, key="gal_metric", default="reach")
 
-    vis = df if fsel == "Todos" else df[df["formato"] == fsel]
+    vis = gal if fsel == "Todos" else gal[gal["formato"] == fsel]
     if met in vis.columns:
         vis = vis.dropna(subset=[met]).sort_values(met, ascending=False)
     vis = vis.head(30)
