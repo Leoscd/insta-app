@@ -29,6 +29,9 @@ class Settings:
     api_version: str
     anthropic_api_key: str
     anthropic_model: str
+    minimax_api_key: str
+    minimax_model: str
+    minimax_base_url: str
     db_path: Path
     local_utc_offset: int  # p.ej. -3 = Argentina (sin horario de verano)
 
@@ -93,6 +96,9 @@ def load_settings() -> Settings:
         api_version=os.getenv("IG_API_VERSION", "v23.0").strip(),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         anthropic_model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5").strip(),
+        minimax_api_key=os.getenv("MINIMAX_API_KEY", "").strip(),
+        minimax_model=os.getenv("MINIMAX_MODEL", "MiniMax-Text-01").strip(),
+        minimax_base_url=os.getenv("MINIMAX_BASE_URL", "https://api.minimax.io/v1").strip(),
         db_path=db_path,
         local_utc_offset=int(os.getenv("LOCAL_UTC_OFFSET", "-3")),
     )
