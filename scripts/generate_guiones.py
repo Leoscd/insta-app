@@ -130,8 +130,30 @@ Para CADA guion entregá, en este orden:
 Reglas de forma: texto limpio, sin corchetes ni placeholders, listo para grabar/diseñar. Español rioplatense."""
 
 
-def generate(prompt: str) -> str:
-    settings.require("anthropic_api_key")
+def _generate_minimax(prompt: str) -> str:
+    """Genera con la API de MiniMax (endpoint OpenAI-compatible)."""
+    import requests
+    resp = requests.post(
+        f"{settings.minimax_base_url}/chat/completions",
+        headers={"Authorization": f"Bearer {settings.minimax_api_key}",
+                 "Content-Type": "application/json"},
+        json={
+            "model": settings.minimax_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 4000,
+        },
+        timeout=180,
+    )
+    if resp.status_code != 200:
+        raise SystemExit(f"[minimax] error {resp.status_code}: {resp.text[:400]}")
+    data = resp.json()
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError):
+        raise SystemExit(f"[minimax] respuesta inesperada: {str(data)[:400]}")
+
+
+def _generate_claude(prompt: str) -> str:
     import anthropic
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     resp = client.messages.create(
@@ -140,6 +162,15 @@ def generate(prompt: str) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
+
+
+def generate(prompt: str) -> str:
+    """Genera con el motor disponible: MiniMax si hay key, si no Claude."""
+    if settings.minimax_api_key:
+        return _generate_minimax(prompt)
+    if settings.anthropic_api_key:
+        return _generate_claude(prompt)
+    raise SystemExit("Falta MINIMAX_API_KEY o ANTHROPIC_API_KEY en el .env")
 
 
 def main() -> None:
