@@ -72,11 +72,12 @@ def build_prompt(objetivo: str, tema: str | None, formato: str | None,
     fn = FUNNEL[objetivo]
     formato = formato or fn["formato"]
     metric = "reach" if objetivo == "alcance" else "saved"
-    slot = next((s for s in planner.best_slots(df, metric, min_n=3, top=5)
-                 if s.get("formato") == formato), None)
+    # best_slots devuelve un DataFrame: iteramos las filas como dicts (.to_dict).
+    candidatos = planner.best_slots(df, metric, min_n=3, top=5).to_dict("records")
+    slot = next((s for s in candidatos if s.get("formato") == formato), None)
     if slot is None:
-        slots = planner.best_slots(df, "saved", min_n=3, top=1)
-        slot = slots.iloc[0].to_dict() if not slots.empty else None
+        fallback = planner.best_slots(df, "saved", min_n=3, top=1).to_dict("records")
+        slot = fallback[0] if fallback else None
     momento = (f"{slot['formato']} el {slot['dia_semana']} en la franja {slot['franja']}"
                if slot else "según tu planificador")
     tema_txt = tema or f"elegí el mejor entre {', '.join(fn['temas'])} según el ángulo"
