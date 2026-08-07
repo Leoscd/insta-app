@@ -20,7 +20,7 @@ import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
 from config import settings  # noqa: E402
-from src import analysis, drivers, planner  # noqa: E402
+from src import analysis, drivers, guiones, planner  # noqa: E402
 from src.db import get_connection, set_topic  # noqa: E402
 from src.tagging import TAXONOMY  # noqa: E402
 
@@ -94,8 +94,8 @@ if df.empty:
 # Navegación con st.radio (no st.tabs): st.tabs NO recuerda la pestaña activa
 # tras un rerun, así que al usar un filtro te devolvía a "Resumen". El radio
 # persiste su valor vía `key`, y solo se renderiza la vista seleccionada.
-VISTAS = ["Resumen", "Galería", "Por formato", "Por tema", "Planificador", "Drivers",
-          "Velocidad", "Ranking", "Horarios", "Hooks & contenido"]
+VISTAS = ["Resumen", "Generador", "Galería", "Por formato", "Por tema", "Planificador",
+          "Drivers", "Velocidad", "Ranking", "Horarios", "Hooks & contenido"]
 vista = st.radio("Vista", VISTAS, horizontal=True, label_visibility="collapsed",
                  key="vista_activa")
 
@@ -143,7 +143,47 @@ if vista == "Resumen":
         por_mes = publicados.groupby(publicados["publicado"].dt.strftime("%Y-%m")).size()
         st.bar_chart(por_mes)
 
-# ── 2. Galería ────────────────────────────────────────────────────────────────
+# ── 2. Generador ──────────────────────────────────────────────────────────────
+elif vista == "Generador":
+    st.subheader("✍️ Generador de guiones con estrategia")
+    st.caption(f"Genera guiones completos con **{guiones.engine_name()}**, primados con tus datos "
+               "reales + las 5 reglas de intención (señal objetivo, demostración, "
+               "consistencia temática, CTA que crece la cuenta).")
+
+    OBJ_LABEL = {"alcance": "Alcance (que te descubran)",
+                 "guardados": "Guardados (valor / autoridad)",
+                 "compartidos": "Compartir (viral)"}
+    c1, c2 = st.columns(2)
+    objetivo = c1.selectbox("Objetivo", list(guiones.FUNNEL), key="gen_obj",
+                            format_func=lambda o: OBJ_LABEL[o])
+    fn = guiones.FUNNEL[objetivo]
+    formato = c2.selectbox("Formato", ["(auto)", "Reel", "Carrusel"], key="gen_fmt")
+    temas_disp = ["(auto)"] + sorted(
+        t for t in df["tema"].dropna().unique() if t not in ("sin_etiquetar", "otro"))
+    tema = c1.selectbox("Tema", temas_disp, key="gen_tema")
+    cantidad = c2.slider("Cantidad", 1, 3, 2, key="gen_cant")
+    notas = st.text_input("Tema puntual / notas (opcional)", key="gen_notas",
+                          placeholder="Ej: mostrar un cómputo de steel frame en 2 minutos")
+    st.caption(f"↳ Rol de embudo: {fn['rol']} · señal a maximizar: **{fn['senal']}**")
+
+    if st.button("✍️ Generar guiones", key="gen_btn", type="primary"):
+        prompt = guiones.build_prompt(
+            objetivo, None if tema == "(auto)" else tema,
+            None if formato == "(auto)" else formato, cantidad, notas.strip(), df)
+        with st.spinner(f"Generando con {guiones.engine_name()}… (puede tardar 10-40s)"):
+            try:
+                st.session_state["gen_out"] = guiones.generate(prompt)
+            except Exception as exc:  # noqa: BLE001
+                st.session_state["gen_out"] = None
+                st.error(f"No se pudo generar: {exc}")
+
+    if st.session_state.get("gen_out"):
+        st.divider()
+        st.markdown(st.session_state["gen_out"])
+        st.download_button("⬇️ Descargar (.md)", st.session_state["gen_out"],
+                           file_name="guiones.md", mime="text/markdown")
+
+# ── 3. Galería ────────────────────────────────────────────────────────────────
 elif vista == "Galería":
     st.subheader("Galería de publicaciones")
     st.caption("Miniatura + métricas de cada post, ordenados por rendimiento. "
