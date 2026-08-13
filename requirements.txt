@@ -12,5 +12,9 @@ scikit-learn>=1.4,<2
 streamlit>=1.40,<2
 altair>=5.4,<6
 
+# API backend (frontend v2)
+fastapi>=0.110,<1
+uvicorn>=0.27,<1
+
 # Etiquetado por IA (opcional — solo se usa si hay ANTHROPIC_API_KEY)
 anthropic>=0.40,<1
