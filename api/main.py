@@ -71,6 +71,24 @@ def num(v, d=2):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+@app.get("/")
+def root():
+    """Página de estado: confirma que la API está viva y lista las rutas."""
+    df = get_df()
+    return {
+        "servicio": "insta-app API",
+        "estado": "ok ✅ la API está funcionando",
+        "datos": {"seguidores": analysis.latest_followers(), "posts": len(df),
+                  "motor_guiones": guiones.engine_name()},
+        "endpoints": [
+            "/api/health", "/api/resumen", "/api/que-funciona", "/api/recomendacion",
+            "/api/hooks", "/api/publicaciones", "/api/timeline", "/api/thumb/{id}",
+            "POST /api/generar-guiones",
+        ],
+        "nota": "Los datos se sirven en las rutas /api/... — esta raíz es solo informativa.",
+    }
+
+
 @app.get("/api/health")
 def health():
     df = get_df()
