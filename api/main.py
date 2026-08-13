@@ -219,6 +219,7 @@ def publicaciones():
             "likes": int(num(r["likes"], 0) or 0), "comentarios": int(num(r["comments"], 0) or 0),
             "interacciones": int(num(r["interacciones"], 0) or 0),
             "primeraLinea": r["hook"],
+            "caption": r["caption"] if pd.notna(r["caption"]) else "",
         })
     return out
 
